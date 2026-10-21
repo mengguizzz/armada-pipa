@@ -6,6 +6,15 @@ FLASH_VBMETA="${FLASH_VBMETA:-no}"
 FLASH_UEFI="${FLASH_UEFI:-no}"
 ROOTFS_PARTITION="${ROOTFS_PARTITION:-userdata}"
 
+if [[ ! -f pipa_rootfs.raw ]]; then
+    shopt -s nullglob
+    rootfs_parts=(pipa_rootfs.raw.part-*)
+    shopt -u nullglob
+    if [[ "${#rootfs_parts[@]}" -gt 0 ]]; then
+        cat "${rootfs_parts[@]}" > pipa_rootfs.raw
+    fi
+fi
+
 if [[ ! -f pipa_boot.raw && -f pipa_boot.raw.xz ]]; then
     xz -dk pipa_boot.raw.xz
 fi

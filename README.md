@@ -19,7 +19,7 @@ Linux ports:
 | --- | --- |
 | `pipa_esp.raw` | `rawdump` |
 | `pipa_boot.raw` | `cust` |
-| `pipa_rootfs.raw` | `userdata` or a dedicated `linux` partition |
+| `pipa_rootfs.raw.part-*` | `userdata` or a dedicated `linux` partition |
 
 Mu-Silicium remains the boot firmware. The build workflow does not flash or
 modify a device.
@@ -49,6 +49,9 @@ chmod +x flash-pipa.sh
 
 The script does not flash Mu-Silicium by default. Set `FLASH_UEFI=yes` only if
 the existing UEFI installation needs to be replaced.
+
+The rootfs is uploaded uncompressed and split into 1.9 GiB parts. The flash
+script concatenates the parts automatically before invoking fastboot.
 
 ## Upstream
 

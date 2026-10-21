@@ -197,7 +197,7 @@ sudo sync
 sudo umount "${WORK}/rootfs"
 sudo losetup -d "${LROOT}"
 LROOT=""
-truncate -s "${FINAL_ROOTFS_SIZE}" "${OUT}/pipa_rootfs.raw"
+sudo truncate -s "${FINAL_ROOTFS_SIZE}" "${OUT}/pipa_rootfs.raw"
 
 find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     sort > "${OUT}/PARTITIONS.txt"
