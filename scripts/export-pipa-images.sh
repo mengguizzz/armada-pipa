@@ -168,17 +168,36 @@ sudo mount "${LROOT}" "${WORK}/rootfs"
     echo "top-level usage:"
     sudo du -x -h --max-depth=1 "${WORK}/rootfs/root" | sort -h
 } > "${OUT}/ROOTFS-USAGE.txt"
-sudo btrfs filesystem resize "${ROOTFS_SIZE}" "${WORK}/rootfs"
+
+# BIB spreads block groups across the provisioned device. Relocate those groups
+# before shrinking, otherwise btrfs reports ENOSPC even when data usage is low.
+sudo btrfs balance start -dusage=90 -musage=90 "${WORK}/rootfs"
+
+FINAL_ROOTFS_SIZE=""
+for candidate in "${ROOTFS_SIZE}" 16G 18G; do
+    if sudo btrfs filesystem resize "${candidate}" "${WORK}/rootfs"; then
+        FINAL_ROOTFS_SIZE="${candidate}"
+        break
+    fi
+    {
+        echo
+        echo "resize to ${candidate} failed; retrying with a larger image"
+    } >> "${OUT}/ROOTFS-USAGE.txt"
+done
+[[ -n "${FINAL_ROOTFS_SIZE}" ]] || {
+    echo "unable to shrink rootfs below 18G" >&2
+    exit 1
+}
 {
     echo
-    echo "after resize to ${ROOTFS_SIZE}:"
+    echo "after resize to ${FINAL_ROOTFS_SIZE}:"
     sudo btrfs filesystem usage -h "${WORK}/rootfs"
 } >> "${OUT}/ROOTFS-USAGE.txt"
 sudo sync
 sudo umount "${WORK}/rootfs"
 sudo losetup -d "${LROOT}"
 LROOT=""
-truncate -s "${ROOTFS_SIZE}" "${OUT}/pipa_rootfs.raw"
+truncate -s "${FINAL_ROOTFS_SIZE}" "${OUT}/pipa_rootfs.raw"
 
 find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     sort > "${OUT}/PARTITIONS.txt"
@@ -187,7 +206,7 @@ find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     echo "source=${RAW}"
     echo "boot_source=${P2} label=${P2_LABEL:-} uuid=${P2_UUID}"
     echo "root_source=${P3} uuid=$(sudo blkid -s UUID -o value "${P3}")"
-    echo "rootfs_size=${ROOTFS_SIZE}"
+    echo "rootfs_size=${FINAL_ROOTFS_SIZE}"
     echo "kernel=${KERNEL}"
     echo "initramfs=${INITRAMFS}"
     echo "dtb=${PIPA_DTB}"

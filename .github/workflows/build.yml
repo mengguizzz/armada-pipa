@@ -126,6 +126,7 @@ jobs:
           xz -T0 -6 pipa_boot.raw pipa_rootfs.raw
           sha256sum pipa_esp.raw pipa_boot.raw.xz pipa_rootfs.raw.xz \
             > SHA256SUMS
+          rootfs_size=$(sed -n 's/^rootfs_size=//p' PARTITION-UUIDS.txt)
           {
             echo "base_image=${{ steps.base.outputs.ref }}"
             echo "base_digest=${{ steps.base.outputs.digest }}"
@@ -133,7 +134,7 @@ jobs:
             echo "run_id=${GITHUB_RUN_ID}"
             echo "kernel=armada-7.2.6"
             echo "dtb=pipa-7.1.7"
-            echo "rootfs_image_size=${ROOTFS_SIZE:-15G}"
+            echo "rootfs_image_size=${rootfs_size}"
           } > BUILDINFO.txt
 
       - name: Upload artifacts
