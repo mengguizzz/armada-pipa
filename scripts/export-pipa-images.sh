@@ -107,7 +107,42 @@ KARGS="$(sudo sed -n 's/^options //p' "${BLS}" | head -n1)"
     echo "Armada BLS entry has no ostree= argument: ${BLS}" >&2
     exit 1
 }
-KARGS="${KARGS} boot=LABEL=pipa-boot clk_ignore_unused pd_ignore_unused"
+
+# Merge repeated rootflags and drop boot/quiet options supplied by different
+# BIB and Armada layers. A duplicate rootflags can silently lose subvol=/root.
+read -r -a karg_words <<< "${KARGS}"
+karg_filtered=()
+rootflag_values=()
+declare -A rootflag_seen=()
+for word in "${karg_words[@]}"; do
+    case "${word}" in
+        rootflags=*)
+            IFS=',' read -r -a rootflag_items <<< "${word#rootflags=}"
+            for item in "${rootflag_items[@]}"; do
+                [[ -n "${item}" && -z "${rootflag_seen[${item}]:-}" ]] || continue
+                rootflag_seen["${item}"]=1
+                rootflag_values+=("${item}")
+            done
+            ;;
+        boot=*|quiet|loglevel=*|clk_ignore_unused|pd_ignore_unused)
+            ;;
+        *)
+            karg_filtered+=("${word}")
+            ;;
+    esac
+done
+if [[ "${#rootflag_values[@]}" -gt 0 ]]; then
+    karg_filtered+=("rootflags=$(IFS=,; printf '%s' "${rootflag_values[*]}")")
+fi
+karg_filtered+=(
+    boot=LABEL=pipa-boot
+    clk_ignore_unused
+    pd_ignore_unused
+    loglevel=7
+    systemd.show_status=1
+    earlycon
+)
+KARGS="${karg_filtered[*]}"
 
 truncate -s 1G "${OUT}/pipa_boot.raw"
 mkfs.ext4 -F -q -L pipa-boot -U "${P2_UUID}" \
