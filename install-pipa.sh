@@ -65,4 +65,6 @@ for unit in \
     fi
 done
 
-rm -rf /boot/dtbs /boot/Image /boot/System.map-* /boot/config-*
+# bootc deploys kernel/initramfs from /usr/lib/modules onto the target /boot.
+# Debian's package payload must not leave a pre-populated /boot in the image.
+find /boot -mindepth 1 -delete

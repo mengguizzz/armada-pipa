@@ -1,3 +1,3 @@
-[[customizations.filesystem]]
-mountpoint = "/"
-minsize = "12 GiB"
+# bootc-image-builder currently warns that customizations.filesystem is
+# unsupported for the raw image type. Keep this file as the stable entry point
+# for future disk-layout options without passing an ignored customization.
