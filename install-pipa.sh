@@ -1,48 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KVER=7.1.7-pipa
-MODDIR="/usr/lib/modules/${KVER}"
-
-[[ -d "${MODDIR}" ]] || {
-    echo "missing pipa modules at ${MODDIR}" >&2
-    exit 1
-}
-[[ -f /boot/Image ]] || {
-    echo "missing pipa kernel image at /boot/Image" >&2
-    exit 1
-}
-[[ -f /boot/dtbs/qcom/sm8250-xiaomi-pipa.dtb ]] || {
-    echo "missing pipa DTB" >&2
-    exit 1
-}
-
-# bootc requires one kernel and its matching modules.
-find /usr/lib/modules -mindepth 1 -maxdepth 1 \
-    ! -name "${KVER}" -exec rm -rf {} +
-rm -f "${MODDIR}/build" "${MODDIR}/source"
-
-install -Dm0644 /boot/Image "${MODDIR}/vmlinuz"
-install -Dm0644 "/boot/config-${KVER}" "${MODDIR}/config"
-install -Dm0644 "/boot/System.map-${KVER}" "${MODDIR}/System.map"
-install -Dm0644 /boot/dtbs/qcom/sm8250-xiaomi-pipa.dtb \
-    "${MODDIR}/dtb/qcom/sm8250-xiaomi-pipa.dtb"
-
-depmod -a "${KVER}" -b /
-
-# The pipa package supplies firmware and the keyboard-cover driver early enough
-# for initramfs. Armada's own modules provide the splash and OSTree fallback.
-dracut \
-    --force \
-    --no-hostonly \
-    --reproducible \
-    --kver "${KVER}" \
-    --add ostree \
-    --add armada-splash \
-    --add armada-ostree-fallback \
-    "${MODDIR}/initramfs.img" \
-    "${KVER}"
-
 touch /usr/lib/armada/supported-dtbs
 if ! grep -qx 'sm8250-xiaomi-pipa' /usr/lib/armada/supported-dtbs; then
     printf '%s\n' 'sm8250-xiaomi-pipa' >> /usr/lib/armada/supported-dtbs
@@ -64,7 +22,3 @@ for unit in \
         systemctl enable "${unit}" >/dev/null 2>&1 || true
     fi
 done
-
-# bootc deploys kernel/initramfs from /usr/lib/modules onto the target /boot.
-# Debian's package payload must not leave a pre-populated /boot in the image.
-find /boot -mindepth 1 -delete

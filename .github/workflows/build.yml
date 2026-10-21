@@ -94,12 +94,27 @@ jobs:
             part_msdos png reboot regexp search search_fs_file search_fs_uuid \
             search_label sleep test true
 
+      - name: Extract pipa DTB
+        run: |
+          set -euxo pipefail
+          mkdir -p build/pipa-deb build/pipa-dtb
+          curl --retry 3 -fL \
+            -o build/pipa-deb/linux-image-pipa.deb \
+            https://thespider2.github.io/pipa-pkgs/repo/ubuntu/linux-image-pipa_7.1.7-4pipa1_arm64.deb
+          echo "fedb8f120dbdb43ff2074d9732cddf5d79f238761c8f15e28954c474830c45e9  build/pipa-deb/linux-image-pipa.deb" |
+            sha256sum -c -
+          dpkg-deb -x build/pipa-deb/linux-image-pipa.deb build/pipa-deb/root
+          install -Dm0644 \
+            build/pipa-deb/root/boot/dtbs/qcom/sm8250-xiaomi-pipa.dtb \
+            build/pipa-dtb/sm8250-xiaomi-pipa.dtb
+
       - name: Export pipa partitions
         run: |
           set -euxo pipefail
           mkdir -p output/pipa
           ./scripts/export-pipa-images.sh \
-            output/raw/image/disk.raw output/pipa build/grubaa64.efi
+            output/raw/image/disk.raw output/pipa build/grubaa64.efi \
+            build/pipa-dtb/sm8250-xiaomi-pipa.dtb
           cp flash-pipa.sh output/pipa/
 
       - name: Compress images
@@ -114,7 +129,8 @@ jobs:
             echo "base_digest=${{ steps.base.outputs.digest }}"
             echo "source_commit=${GITHUB_SHA}"
             echo "run_id=${GITHUB_RUN_ID}"
-            echo "kernel=7.1.7-pipa"
+            echo "kernel=armada-7.2.6"
+            echo "dtb=pipa-7.1.7"
           } > BUILDINFO.txt
 
       - name: Upload artifacts

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RAW="${1:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi>}"
-OUT="${2:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi>}"
-GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi>}"
+RAW="${1:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
+OUT="${2:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
+GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
+PIPA_DTB="${4:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 
 [[ -f "${RAW}" ]] || {
     echo "raw disk not found: ${RAW}" >&2
@@ -11,6 +12,10 @@ GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa6
 }
 [[ -f "${GRUBAA64_EFI}" ]] || {
     echo "GRUB EFI binary not found: ${GRUBAA64_EFI}" >&2
+    exit 1
+}
+[[ -f "${PIPA_DTB}" ]] || {
+    echo "pipa DTB not found: ${PIPA_DTB}" >&2
     exit 1
 }
 
@@ -79,11 +84,10 @@ KERNEL="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
     -name 'vmlinuz-*' | head -n1)"
 INITRAMFS="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
     -name 'initramfs-*.img' | head -n1)"
-DTB="${BOOTDIR}/dtb/qcom/sm8250-xiaomi-pipa.dtb"
 BLS="$(sudo find "${WORK}/src2" -path '*/loader*/entries/*.conf' \
     -type f | head -n1)"
 
-for path in "${KERNEL}" "${INITRAMFS}" "${DTB}" "${BLS}"; do
+for path in "${KERNEL}" "${INITRAMFS}" "${BLS}"; do
     [[ -f "${path}" ]] || {
         echo "missing required Armada boot artifact: ${path}" >&2
         exit 1
@@ -105,7 +109,7 @@ L2="$(sudo losetup --find --show "${OUT}/pipa_boot.raw")"
 sudo mount "${L2}" "${WORK}/boot"
 sudo install -Dm0644 "${KERNEL}" "${WORK}/boot/Image"
 sudo install -Dm0644 "${INITRAMFS}" "${WORK}/boot/initramfs.img"
-sudo install -Dm0644 "${DTB}" "${WORK}/boot/sm8250-xiaomi-pipa.dtb"
+sudo install -Dm0644 "${PIPA_DTB}" "${WORK}/boot/sm8250-xiaomi-pipa.dtb"
 sudo sync
 sudo umount "${WORK}/src2" "${WORK}/boot"
 sudo losetup -d "${L2}"
@@ -151,6 +155,6 @@ find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     echo "root_source=${P3} uuid=$(sudo blkid -s UUID -o value "${P3}")"
     echo "kernel=${KERNEL}"
     echo "initramfs=${INITRAMFS}"
-    echo "dtb=${DTB}"
+    echo "dtb=${PIPA_DTB}"
     echo "kargs=${KARGS}"
 } > "${OUT}/PARTITION-UUIDS.txt"
