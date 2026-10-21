@@ -5,6 +5,7 @@ RAW="${1:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <p
 OUT="${2:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 PIPA_DTB="${4:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
+ROOTFS_SIZE="${ROOTFS_SIZE:-15G}"
 
 [[ -f "${RAW}" ]] || {
     echo "raw disk not found: ${RAW}" >&2
@@ -22,12 +23,19 @@ PIPA_DTB="${4:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.ef
 mkdir -p "${OUT}" "${OUT}/work"
 WORK="$(mktemp -d "${OUT}/work/mnt.XXXXXX")"
 LOOP=""
+L1=""
+L2=""
+LROOT=""
 
 cleanup() {
     sudo umount "${WORK}/src2" 2>/dev/null || true
     sudo umount "${WORK}/boot" 2>/dev/null || true
     sudo umount "${WORK}/esp" 2>/dev/null || true
+    sudo umount "${WORK}/rootfs" 2>/dev/null || true
     [[ -z "${LOOP}" ]] || sudo losetup -d "${LOOP}" 2>/dev/null || true
+    [[ -z "${L1}" ]] || sudo losetup -d "${L1}" 2>/dev/null || true
+    [[ -z "${L2}" ]] || sudo losetup -d "${L2}" 2>/dev/null || true
+    [[ -z "${LROOT}" ]] || sudo losetup -d "${LROOT}" 2>/dev/null || true
     rm -rf "${WORK}"
 }
 trap cleanup EXIT
@@ -64,7 +72,7 @@ P3="${LOOP}p3"
     exit 1
 }
 
-mkdir -p "${WORK}/src2" "${WORK}/boot" "${WORK}/esp"
+mkdir -p "${WORK}/src2" "${WORK}/boot" "${WORK}/esp" "${WORK}/rootfs"
 
 P2_LABEL="$(sudo blkid -s LABEL -o value "${P2}")"
 P2_UUID="$(sudo blkid -s UUID -o value "${P2}")"
@@ -113,6 +121,7 @@ sudo install -Dm0644 "${PIPA_DTB}" "${WORK}/boot/sm8250-xiaomi-pipa.dtb"
 sudo sync
 sudo umount "${WORK}/src2" "${WORK}/boot"
 sudo losetup -d "${L2}"
+L2=""
 
 truncate -s 128M "${OUT}/pipa_esp.raw"
 mkfs.vfat -F 32 -n PIPAESP "${OUT}/pipa_esp.raw" >/dev/null
@@ -142,9 +151,34 @@ EOF
 sudo sync
 sudo umount "${WORK}/esp"
 sudo losetup -d "${L1}"
+L1=""
 
-sudo dd if="${P3}" of="${OUT}/pipa_rootfs.raw" bs=16M status=progress
+sudo dd if="${P3}" of="${OUT}/pipa_rootfs.raw" bs=16M conv=sparse status=progress
 sudo sync
+
+# BIB reserves enough free space for a staged bootc upgrade. The installed tree
+# is substantially smaller, so shrink the exported filesystem before download.
+# The target partition is larger and bootc growpart expands it on first boot.
+LROOT="$(sudo losetup --find --show "${OUT}/pipa_rootfs.raw")"
+sudo mount "${LROOT}" "${WORK}/rootfs"
+{
+    echo "before:"
+    sudo btrfs filesystem usage -h "${WORK}/rootfs"
+    echo
+    echo "top-level usage:"
+    sudo du -x -h --max-depth=1 "${WORK}/rootfs/root" | sort -h
+} > "${OUT}/ROOTFS-USAGE.txt"
+sudo btrfs filesystem resize "${ROOTFS_SIZE}" "${WORK}/rootfs"
+{
+    echo
+    echo "after resize to ${ROOTFS_SIZE}:"
+    sudo btrfs filesystem usage -h "${WORK}/rootfs"
+} >> "${OUT}/ROOTFS-USAGE.txt"
+sudo sync
+sudo umount "${WORK}/rootfs"
+sudo losetup -d "${LROOT}"
+LROOT=""
+truncate -s "${ROOTFS_SIZE}" "${OUT}/pipa_rootfs.raw"
 
 find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     sort > "${OUT}/PARTITIONS.txt"
@@ -153,6 +187,7 @@ find "${OUT}" -maxdepth 1 -type f -printf '%f %s bytes\n' |
     echo "source=${RAW}"
     echo "boot_source=${P2} label=${P2_LABEL:-} uuid=${P2_UUID}"
     echo "root_source=${P3} uuid=$(sudo blkid -s UUID -o value "${P3}")"
+    echo "rootfs_size=${ROOTFS_SIZE}"
     echo "kernel=${KERNEL}"
     echo "initramfs=${INITRAMFS}"
     echo "dtb=${PIPA_DTB}"

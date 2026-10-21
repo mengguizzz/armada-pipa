@@ -115,6 +115,8 @@ jobs:
           ./scripts/export-pipa-images.sh \
             output/raw/image/disk.raw output/pipa build/grubaa64.efi \
             build/pipa-dtb/sm8250-xiaomi-pipa.dtb
+          sudo chown -R "$(id -u):$(id -g)" output/pipa
+          sudo rm -f output/raw/image/disk.raw
           cp flash-pipa.sh output/pipa/
 
       - name: Compress images
@@ -131,6 +133,7 @@ jobs:
             echo "run_id=${GITHUB_RUN_ID}"
             echo "kernel=armada-7.2.6"
             echo "dtb=pipa-7.1.7"
+            echo "rootfs_image_size=${ROOTFS_SIZE:-15G}"
           } > BUILDINFO.txt
 
       - name: Upload artifacts
