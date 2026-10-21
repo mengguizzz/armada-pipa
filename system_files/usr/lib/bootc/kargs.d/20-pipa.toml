@@ -1,0 +1,5 @@
+kargs = [
+    "clk_ignore_unused",
+    "pd_ignore_unused",
+    "video=DSI-1:panel_orientation=right_side_up",
+]

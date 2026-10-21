@@ -1,0 +1,127 @@
+name: Build pipa images
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: armada-pipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_IMAGE: ghcr.io/armada-os/armada:testing
+  BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: ublue-os/remove-unwanted-software@cc0becac701cf642c8f0a6613bbdaf5dc36b259e
+        with:
+          remove-codeql: true
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            btrfs-progs dosfstools e2fsprogs grub-efi-arm64-bin jq podman \
+            rsync skopeo xz-utils
+
+      - name: Resolve immutable base image
+        id: base
+        run: |
+          set -euo pipefail
+          digest=$(skopeo inspect --override-arch arm64 --format '{{.Digest}}' \
+            "docker://${BASE_IMAGE}")
+          ref="${BASE_IMAGE%:*}@${digest}"
+          test -n "${digest}"
+          sudo podman pull --arch arm64 "${ref}"
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+          echo "Base: ${ref}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Build Armada-pipa container
+        run: |
+          set -euxo pipefail
+          sudo podman build \
+            --arch arm64 \
+            --build-arg "BASE_IMAGE=${{ steps.base.outputs.ref }}" \
+            -t localhost/armada-pipa:ci \
+            .
+          sudo podman image inspect localhost/armada-pipa:ci \
+            --format '{{.Digest}} {{.Created}}' \
+            | tee container-info.txt
+
+      - name: Build bootc disk
+        run: |
+          set -euxo pipefail
+          mkdir -p output/raw
+          sudo podman run --rm --privileged --net=host --platform linux/arm64 \
+            --security-opt label=type:unconfined_t \
+            --security-opt apparmor=unconfined \
+            -v "${PWD}/config/disk.toml:/config.toml:ro" \
+            -v "${PWD}/output/raw:/output" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "${BIB_IMAGE}" \
+            --type raw \
+            --rootfs btrfs \
+            --target-arch arm64 \
+            localhost/armada-pipa:ci
+          sudo chown -R "$(id -u):$(id -g)" output/raw
+
+      - name: Build GRUB EFI payload
+        run: |
+          set -euxo pipefail
+          mkdir -p build
+          grub-mkimage \
+            -d /usr/lib/grub/arm64-efi \
+            -O arm64-efi \
+            -o build/grubaa64.efi \
+            -p /EFI/BOOT \
+            all_video boot cat chain configfile echo ext2 fat font gfxterm \
+            gzio help jpeg linux loadenv ls lsefi lsefimmap normal part_gpt \
+            part_msdos png reboot regexp search search_fs_file search_fs_uuid \
+            search_label sleep test true
+
+      - name: Export pipa partitions
+        run: |
+          set -euxo pipefail
+          mkdir -p output/pipa
+          ./scripts/export-pipa-images.sh \
+            output/raw/image/disk.raw output/pipa build/grubaa64.efi
+          cp flash-pipa.sh output/pipa/
+
+      - name: Compress images
+        run: |
+          set -euxo pipefail
+          cd output/pipa
+          xz -T0 -6 pipa_boot.raw pipa_rootfs.raw
+          sha256sum pipa_esp.raw pipa_boot.raw.xz pipa_rootfs.raw.xz \
+            > SHA256SUMS
+          {
+            echo "base_image=${{ steps.base.outputs.ref }}"
+            echo "base_digest=${{ steps.base.outputs.digest }}"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "kernel=7.1.7-pipa"
+          } > BUILDINFO.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: armada-pipa-${{ github.run_number }}
+          path: output/pipa/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
