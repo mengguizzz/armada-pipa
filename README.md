@@ -30,6 +30,10 @@ This is a bring-up prototype. The first builds are intended to establish
 boot, framebuffer/DRM, input, and Steam startup. Audio, sensors, camera, suspend,
 and OTA-safe kernel replacement still need device testing.
 
+See [docs/usb-bringup.md](docs/usb-bringup.md) for the validated USB boot path,
+partition UUIDs, touch rotation, fake-suspend handling, and QCA6390 firmware
+requirements.
+
 ## Build
 
 Run the **Build pipa images** workflow manually from the Actions tab. It runs on

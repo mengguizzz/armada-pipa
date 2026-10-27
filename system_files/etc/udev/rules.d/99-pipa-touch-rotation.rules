@@ -1,0 +1,6 @@
+# Xiaomi Pad 6 uses a portrait Novatek panel rotated into landscape by
+# Gamescope. Its SPI touch device is not auto-associated with DSI-1, so apply
+# the same 270-degree transform as Gamescope's "right" panel orientation.
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", \
+  ATTRS{name}=="NVTCapacitiveTouchScreen", \
+  ENV{LIBINPUT_CALIBRATION_MATRIX}="0 1 0 -1 0 1"
