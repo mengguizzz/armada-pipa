@@ -1,0 +1,10 @@
+[pocketblue-sm8250]
+name=Pocketblue SM8250 packages for Xiaomi Pad 6
+baseurl=https://download.copr.fedorainfracloud.org/results/pocketblue/sm8250/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=False
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/pocketblue/sm8250/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+priority=90

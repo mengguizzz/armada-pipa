@@ -1,0 +1,10 @@
+[pocketblue-common]
+name=Pocketblue common mobile packages
+baseurl=https://download.copr.fedorainfracloud.org/results/pocketblue/common/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=False
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/pocketblue/common/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+priority=80

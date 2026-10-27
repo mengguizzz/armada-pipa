@@ -17,7 +17,10 @@ for unit in \
     pipa-audio-init.service \
     bootmac-bluetooth.service \
     swclock-offset-boot.service \
-    swclock-offset-shutdown.service; do
+    swclock-offset-shutdown.service \
+    qrtr-ns.service \
+    pd-mapper.service \
+    tqftpserv.service; do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         systemctl enable "${unit}" >/dev/null 2>&1 || true
     fi

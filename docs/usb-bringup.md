@@ -45,6 +45,14 @@ leave a black screen even though boot and Steam continue in the background.
 The local `fake-suspend` override ignores suspend requests until a Gamescope or
 Wayland session socket exists.
 
+### Protective-case Hall sensor
+
+The Pad 6 protective folio can trigger the generic lid switch and put the
+system to sleep. This is not a useful clamshell signal on a standalone tablet.
+The image disables lid events both in `systemd-logind` and in Armada's
+`powerbuttond` through `ARMADA_DISABLE_LID=1`. Power-button sleep remains
+available.
+
 ### Touch orientation
 
 The Novatek touch controller is connected over SPI. Gamescope only associates
@@ -105,6 +113,19 @@ does not depend on cross-distribution RPM compatibility.
 The Fedora `pipa-metapkg` is a dependency bundle rather than a driver. Relevant
 components are `kernel-pipa`, `xiaomi-pipa-firmware`, `pipa-dracut`,
 `pipa-sound-conf`, `pipa-sensor-restart`, and the matching kernel modules.
+
+The build uses the Pocketblue SM8250 and common COPR repositories for
+hardware-specific Fedora packages. Armada's Steam, Gamescope, OSTree, HUD, and
+device integration remain local. The Fedora kernel is not installed yet because
+the proven Ubuntu-pipa `7.1.4-pipa` kernel is still the current boot baseline.
+
+## Image size
+
+Starting from the full Armada image is intentionally temporary. The build
+prunes documentation, SystemTap/SGML data, and firmware for unrelated SoCs while
+retaining Qualcomm, QCA, Atheros, and Novatek firmware. Further large reductions
+would require removing optional applications, FEX's x86 rootfs, or the Steam
+runtime and should be explicit product decisions.
 
 ## Remaining work
 
