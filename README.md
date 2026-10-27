@@ -26,9 +26,9 @@ modify a device.
 
 ## Status
 
-This is a bring-up prototype. The first builds are intended to establish
-boot, framebuffer/DRM, input, and Steam startup. Audio, sensors, camera, suspend,
-and OTA-safe kernel replacement still need device testing.
+This is a bring-up prototype. USB boot, display, touch, Steam startup, Wi-Fi,
+Bluetooth, and root filesystem growth are validated on hardware. Audio, sensors,
+camera, suspend, and OTA-safe kernel replacement still need device testing.
 
 See [docs/usb-bringup.md](docs/usb-bringup.md) for the validated USB boot path,
 partition UUIDs, touch rotation, fake-suspend handling, and QCA6390 firmware

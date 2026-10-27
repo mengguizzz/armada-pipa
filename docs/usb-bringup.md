@@ -55,23 +55,60 @@ applied to this device.
 Gamescope's `right` panel orientation through
 `LIBINPUT_CALIBRATION_MATRIX`.
 
-### QCA6390 firmware during early boot
+### Qualcomm firmware during early boot
 
-The image already contains the QCA6390 Wi-Fi and Bluetooth firmware, but the
-devices probe during initramfs before the OSTree root is available. The custom
-initramfs did not contain the firmware files, resulting in errors such as:
+The image already contains the QCA6390 Wi-Fi, Bluetooth, ADSP, SLPI, CDSP, and
+Venus firmware, but the devices probe during initramfs before the OSTree root is
+available. The custom initramfs did not contain the firmware files, resulting
+in errors such as:
 
 ```text
 Direct firmware load for ath11k/QCA6390/hw2.0/amss.bin failed with error -2
 Direct firmware load for qca/htbtfw20.tlv failed with error -2
+Direct firmware load for qcom/sm8250/xiaomi/pipa/adsp.mbn failed with error -2
 ```
 
-`30-pipa-network-firmware.conf` forces the required drivers into the initramfs
-and installs the matching compressed firmware files.
+`30-pipa-firmware.conf` is the single initramfs policy for all early-probing
+pipa hardware. It installs Wi-Fi, Bluetooth, DSP, sensor, media, and GPU firmware
+together so new subsystems do not need separate fixes.
+
+### Root filesystem size
+
+The exported root filesystem is intentionally small and the GPT root partition
+is larger. If the Btrfs filesystem was not grown after flashing, resize it
+online:
+
+```bash
+sudo btrfs filesystem resize max /
+```
+
+## Resource reporting
+
+The device reserves memory for firmware, remote processors, display splash,
+ramoops, and CMA. On an 8 GiB Pad 6 the kernel reports approximately
+`7.5 GiB available / 7.68 GiB total`, so a 7 GiB userspace reading is expected.
+
+Adreno 650 uses shared system memory. A Steam or Mesa value around 6 GiB is a
+UMA aperture/reporting value, not a second 6 GiB dedicated VRAM allocation.
+
+The pipa kernel boots all eight CPUs. Steam's hardware page may show an empty
+or generic CPU name on ARM64, but that does not indicate that CPU detection or
+SMP is missing.
+
+## Fedora user-space baseline
+
+The Fedora `pipa-sound-conf` package provides the current UCM and WirePlumber
+configuration. Its latest package split uses `alsa-ucm-conf-sm8250` for UCM;
+this repository vendors the corresponding configuration files so the image
+does not depend on cross-distribution RPM compatibility.
+
+The Fedora `pipa-metapkg` is a dependency bundle rather than a driver. Relevant
+components are `kernel-pipa`, `xiaomi-pipa-firmware`, `pipa-dracut`,
+`pipa-sound-conf`, `pipa-sensor-restart`, and the matching kernel modules.
 
 ## Remaining work
 
-- Rebuild the initramfs and verify Wi-Fi and Bluetooth initialization.
+- Rebuild the initramfs and verify ADSP-backed audio initialization.
 - Match all kernel modules to the kernel that is actually booted. Do not mix
   modules from different kernel releases.
 - Create `/boot/loader` metadata expected by rpm-ostree or adapt the OSTree boot
