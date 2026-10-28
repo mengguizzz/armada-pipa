@@ -209,7 +209,7 @@ sudo mount "${LROOT}" "${WORK}/rootfs"
 sudo btrfs balance start -dusage=90 -musage=90 "${WORK}/rootfs"
 
 FINAL_ROOTFS_SIZE=""
-for candidate in "${ROOTFS_SIZE}" 16G 18G; do
+for candidate in "${ROOTFS_SIZE}" 16G 17G 18G; do
     if sudo btrfs filesystem resize "${candidate}" "${WORK}/rootfs"; then
         FINAL_ROOTFS_SIZE="${candidate}"
         break

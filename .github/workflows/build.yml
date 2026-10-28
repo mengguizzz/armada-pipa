@@ -152,7 +152,7 @@ jobs:
             output/pipa/ROOTFS-USAGE.txt
             output/pipa/SHA256SUMS
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 6
           retention-days: 7
 
       - name: Upload rootfs parts A
@@ -165,7 +165,7 @@ jobs:
             output/pipa/pipa_rootfs.raw.part-02
             output/pipa/pipa_rootfs.raw.part-03
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 9
           retention-days: 7
 
       - name: Upload rootfs parts B
@@ -178,7 +178,7 @@ jobs:
             output/pipa/pipa_rootfs.raw.part-06
             output/pipa/pipa_rootfs.raw.part-07
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 9
           retention-days: 7
 
       - name: Upload rootfs parts C
@@ -189,5 +189,5 @@ jobs:
             output/pipa/pipa_rootfs.raw.part-08
             output/pipa/pipa_rootfs.raw.part-09
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 9
           retention-days: 7

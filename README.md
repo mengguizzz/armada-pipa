@@ -54,8 +54,9 @@ chmod +x flash-pipa.sh
 The script does not flash Mu-Silicium by default. Set `FLASH_UEFI=yes` only if
 the existing UEFI installation needs to be replaced.
 
-The rootfs is uploaded uncompressed and split into 1.9 GiB parts. The flash
-script concatenates the parts automatically before invoking fastboot.
+The rootfs is split into 1.9 GiB parts and compressed as GitHub artifacts. The
+flash script concatenates the extracted parts automatically before invoking
+fastboot.
 
 ## Upstream
 

@@ -127,6 +127,12 @@ retaining Qualcomm, QCA, Atheros, and Novatek firmware. Further large reductions
 would require removing optional applications, FEX's x86 rootfs, or the Steam
 runtime and should be explicit product decisions.
 
+The exported raw filesystem is tried at 15, 16, 17, then 18 GiB. A raw sparse
+image is not a useful download-size indicator because archive uploads that do
+not preserve sparse ranges store zero blocks. Rootfs artifacts therefore use
+compression, while the extracted files remain compatible with the existing
+flashing script.
+
 ## Remaining work
 
 - Rebuild the initramfs and verify ADSP-backed audio initialization.
