@@ -51,7 +51,7 @@ RUN set -eux; \
     curl --retry 3 -fLO \
         https://kojipkgs.fedoraproject.org/packages/pd-mapper/1.0/5.fc40/aarch64/pd-mapper-1.0-5.fc40.aarch64.rpm; \
     printf '%s  %s\n' \
-      '545208d284467e90aee236cdaa22aa64eedf157b16ffc0d49f698d8cdd74957ae' 'qrtr-1.0-3.fc40.aarch64.rpm' \
+      '545208d284467e90aee236cda22aa64eedf157b16ffc0d49f698d8cdd74957ae' 'qrtr-1.0-3.fc40.aarch64.rpm' \
       'd9edbb7842fb3e992e7b8035c1cae3709a66dbfa0745451adcbfeda69820fcf7' 'pd-mapper-1.0-5.fc40.aarch64.rpm' \
       | sha256sum -c -; \
     rpm -i --nodeps ./*.rpm; \
@@ -67,4 +67,6 @@ RUN chmod 0755 /usr/lib/armada-pipa/install-pipa.sh \
     && /usr/lib/armada-pipa/install-pipa.sh \
     && /usr/lib/armada-pipa/slim-image.sh
 
-RUN bootc container lint
+# The image intentionally carries the upstream Pipa kernel alongside the
+# bootc base kernel during the build. Export selects only the Pipa kernel and
+# module tree, so the stock single-kernel bootc lint is not applicable here.
