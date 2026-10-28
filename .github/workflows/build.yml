@@ -16,6 +16,7 @@ concurrency:
 env:
   BASE_IMAGE: ghcr.io/armada-os/armada:testing
   BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b
+  PIPA_KERNEL_VERSION: 7.1.7-pipa
 
 jobs:
   build:
@@ -57,6 +58,7 @@ jobs:
           sudo podman build \
             --arch arm64 \
             --build-arg "BASE_IMAGE=${{ steps.base.outputs.ref }}" \
+            --build-arg "PIPA_KERNEL_VERSION=${PIPA_KERNEL_VERSION}" \
             -t localhost/armada-pipa:ci \
             .
           sudo podman image inspect localhost/armada-pipa:ci \
@@ -133,7 +135,7 @@ jobs:
             echo "base_digest=${{ steps.base.outputs.digest }}"
             echo "source_commit=${GITHUB_SHA}"
             echo "run_id=${GITHUB_RUN_ID}"
-            echo "kernel=armada-7.2.6"
+          echo "kernel=${PIPA_KERNEL_VERSION}"
             echo "dtb=pipa-7.1.7"
             echo "rootfs_image_size=${rootfs_size}"
           } > BUILDINFO.txt

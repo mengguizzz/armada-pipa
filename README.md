@@ -7,7 +7,7 @@ the device support already proven by the pipa Linux port.
 This repository does **not** rebuild all of Armada. GitHub Actions starts from
 the published `ghcr.io/armada-os/armada:testing` image and layers on:
 
-- Armada Linux `7.2.6` and the pipa `7.1.7` DTB
+- upstream pipa `7.1.7` Image, modules, initramfs, and matching DTB
 - Xiaomi Pad 6 firmware and Qualcomm firmware service configuration
 - pipa audio, boot MAC, and clock support
 - an Armada device profile for the Xiaomi Pad 6

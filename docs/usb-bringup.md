@@ -9,16 +9,17 @@ This document records the boot path and fixes validated on a Xiaomi Pad 6
 Mu-Silicium UEFI
   -> USB ESP /EFI/BOOT/BOOTAA64.EFI
   -> GRUB
-  -> Linux 7.1.4-pipa from the boot partition
+  -> upstream Linux 7.1.7-pipa from the boot partition
   -> Btrfs OSTree root
   -> systemd
   -> SDDM
   -> Gamescope and Steam
 ```
 
-The current bring-up uses the `7.1.4-pipa` kernel and module tree from the
-working Ubuntu-pipa image. Armada's OSTree initramfs hooks and root filesystem
-are retained.
+The build pins the upstream `linux-image-pipa`, `linux-modules-pipa`, and
+matching Pipa DTB packages. Dracut generates the Pipa initramfs inside the
+container so the Image, modules, firmware, and device tree always come from the
+same kernel release. Armada's OSTree hooks and root filesystem are retained.
 
 ## Required partition UUIDs
 
@@ -116,8 +117,8 @@ components are `kernel-pipa`, `xiaomi-pipa-firmware`, `pipa-dracut`,
 
 The build uses the Pocketblue SM8250 and common COPR repositories for
 hardware-specific Fedora packages. Armada's Steam, Gamescope, OSTree, HUD, and
-device integration remain local. The Fedora kernel is not installed yet because
-the proven Ubuntu-pipa `7.1.4-pipa` kernel is still the current boot baseline.
+device integration remain local. The boot kernel is the upstream Pipa kernel,
+not Armada's generic handheld kernel.
 
 ## Image size
 

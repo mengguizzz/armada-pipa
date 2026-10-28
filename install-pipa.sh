@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+pipa_kernel="${PIPA_KERNEL_VERSION:-7.1.7-pipa}"
+pipa_modules="/usr/lib/modules/${pipa_kernel}"
+
 touch /usr/lib/armada/supported-dtbs
 if ! grep -qx 'sm8250-xiaomi-pipa' /usr/lib/armada/supported-dtbs; then
     printf '%s\n' 'sm8250-xiaomi-pipa' >> /usr/lib/armada/supported-dtbs
@@ -25,3 +28,15 @@ for unit in \
         systemctl enable "${unit}" >/dev/null 2>&1 || true
     fi
 done
+
+if [[ -d "${pipa_modules}" ]]; then
+    command -v dracut >/dev/null
+    dracut \
+        --force \
+        --no-hostonly \
+        --kver "${pipa_kernel}" \
+        --add ostree \
+        "${pipa_modules}/initramfs.img"
+    chmod 0600 "${pipa_modules}/initramfs.img"
+    test -s "${pipa_modules}/initramfs.img"
+fi

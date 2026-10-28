@@ -6,6 +6,7 @@ OUT="${2:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <p
 GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 PIPA_DTB="${4:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 ROOTFS_SIZE="${ROOTFS_SIZE:-15G}"
+PIPA_KERNEL_VERSION="${PIPA_KERNEL_VERSION:-7.1.7-pipa}"
 
 [[ -f "${RAW}" ]] || {
     echo "raw disk not found: ${RAW}" >&2
@@ -88,10 +89,17 @@ DEPLOY="$(sudo find "${WORK}/src2/ostree" -mindepth 1 -maxdepth 1 \
 }
 
 BOOTDIR="${WORK}/src2/ostree/${DEPLOY}"
-KERNEL="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
-    -name 'vmlinuz-*' | head -n1)"
-INITRAMFS="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
-    -name 'initramfs-*.img' | head -n1)"
+PIPA_MODULE_DIR="${BOOTDIR}/usr/lib/modules/${PIPA_KERNEL_VERSION}"
+if [[ -d "${PIPA_MODULE_DIR}" ]]; then
+    KERNEL="$(sudo find "${PIPA_MODULE_DIR}" -maxdepth 1 -type f \
+        -name 'vmlinuz.uncompressed' | head -n1)"
+    INITRAMFS="${PIPA_MODULE_DIR}/initramfs.img"
+else
+    KERNEL="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
+        -name 'vmlinuz-*' | head -n1)"
+    INITRAMFS="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
+        -name 'initramfs-*.img' | head -n1)"
+fi
 BLS="$(sudo find "${WORK}/src2" -path '*/loader*/entries/*.conf' \
     -type f | head -n1)"
 
@@ -207,6 +215,17 @@ sudo mount "${LROOT}" "${WORK}/rootfs"
 # BIB spreads block groups across the provisioned device. Relocate those groups
 # before shrinking, otherwise btrfs reports ENOSPC even when data usage is low.
 sudo btrfs balance start -dusage=90 -musage=90 "${WORK}/rootfs"
+
+# The bootc base kernel is only needed to build the disk image. The exported
+# device boots the pinned Pipa kernel, so keep exactly one module tree to avoid
+# accidental cross-kernel module use and reclaim image space.
+while IFS= read -r -d '' module_dir; do
+    [[ "$(basename "${module_dir}")" == "${PIPA_KERNEL_VERSION}" ]] && continue
+    sudo rm -rf "${module_dir}"
+done < <(
+    sudo find "${WORK}/rootfs/root/ostree/deploy/default/deploy" \
+        -mindepth 5 -maxdepth 5 -path '*/usr/lib/modules/*' -type d -print0
+)
 
 FINAL_ROOTFS_SIZE=""
 for candidate in "${ROOTFS_SIZE}" 16G 17G 18G; do
