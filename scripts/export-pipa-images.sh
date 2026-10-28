@@ -246,7 +246,9 @@ sudo btrfs balance start -dusage=90 -musage=90 "${WORK}/rootfs"
 # device boots the pinned Pipa kernel, so keep exactly one module tree to avoid
 # accidental cross-kernel module use and reclaim image space.
 while IFS= read -r -d '' module_dir; do
-    [[ "$(basename "${module_dir}")" == "${PIPA_KERNEL_VERSION}" ]] && continue
+    case "$(basename "${module_dir}")" in
+        "${PIPA_KERNEL_VERSION}"|keys) continue ;;
+    esac
     sudo rm -rf "${module_dir}"
 done < <(
     sudo find "${WORK}/rootfs/root/ostree/deploy/default/deploy" \
