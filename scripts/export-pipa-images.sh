@@ -5,6 +5,7 @@ RAW="${1:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <p
 OUT="${2:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 GRUBAA64_EFI="${3:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
 PIPA_DTB="${4:?usage: export-pipa-images.sh <disk.raw> <output-dir> <grubaa64.efi> <pipa.dtb>}"
+PIPA_KERNEL_PAYLOAD="${5:-${PIPA_KERNEL_PAYLOAD:-}}"
 ROOTFS_SIZE="${ROOTFS_SIZE:-15G}"
 PIPA_KERNEL_VERSION="${PIPA_KERNEL_VERSION:-7.1.7-pipa}"
 
@@ -23,6 +24,18 @@ PIPA_KERNEL_VERSION="${PIPA_KERNEL_VERSION:-7.1.7-pipa}"
 
 mkdir -p "${OUT}" "${OUT}/work"
 WORK="$(mktemp -d "${OUT}/work/mnt.XXXXXX")"
+if [[ -n "${PIPA_KERNEL_PAYLOAD}" ]]; then
+    [[ -f "${PIPA_KERNEL_PAYLOAD}" ]] || {
+        echo "Pipa kernel payload not found: ${PIPA_KERNEL_PAYLOAD}" >&2
+        exit 1
+    }
+    mkdir -p "${WORK}/pipa-payload"
+    tar -C "${WORK}/pipa-payload" -xzf "${PIPA_KERNEL_PAYLOAD}"
+    PIPA_MODULE_SOURCE="${WORK}/pipa-payload/usr/lib/modules/${PIPA_KERNEL_VERSION}"
+    KERNEL="${WORK}/pipa-payload/Image"
+    INITRAMFS="${WORK}/pipa-payload/initramfs.img"
+    PIPA_DTB="${WORK}/pipa-payload/sm8250-xiaomi-pipa.dtb"
+fi
 LOOP=""
 L1=""
 L2=""
@@ -90,11 +103,13 @@ DEPLOY="$(sudo find "${WORK}/src2/ostree" -mindepth 1 -maxdepth 1 \
 
 BOOTDIR="${WORK}/src2/ostree/${DEPLOY}"
 PIPA_MODULE_DIR="${BOOTDIR}/usr/lib/modules/${PIPA_KERNEL_VERSION}"
-if [[ -d "${PIPA_MODULE_DIR}" ]]; then
+if [[ -z "${KERNEL:-}" && -d "${PIPA_MODULE_DIR}" ]]; then
+    PIPA_MODULE_SOURCE="${PIPA_MODULE_DIR}"
     KERNEL="$(sudo find "${PIPA_MODULE_DIR}" -maxdepth 1 -type f \
         -name 'vmlinuz.uncompressed' | head -n1)"
     INITRAMFS="${PIPA_MODULE_DIR}/initramfs.img"
-else
+fi
+if [[ -z "${KERNEL:-}" ]]; then
     KERNEL="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
         -name 'vmlinuz-*' | head -n1)"
     INITRAMFS="$(sudo find "${BOOTDIR}" -maxdepth 1 -type f \
@@ -211,6 +226,17 @@ sudo mount "${LROOT}" "${WORK}/rootfs"
     echo "top-level usage:"
     sudo du -x -h --max-depth=1 "${WORK}/rootfs/root" | sort -h
 } > "${OUT}/ROOTFS-USAGE.txt"
+
+if [[ -n "${PIPA_MODULE_SOURCE:-}" ]]; then
+    target_deploy=$(
+        sudo find "${WORK}/rootfs/root/ostree/deploy/default/deploy" \
+            -mindepth 1 -maxdepth 1 -type d -printf '%p\n' |
+            head -n 1
+    )
+    [[ -d "${target_deploy}/usr/lib/modules" ]]
+    sudo cp -a "${PIPA_MODULE_SOURCE}" "${target_deploy}/usr/lib/modules/"
+    sudo rm -f "${target_deploy}/usr/lib/armada-pipa/pipa-kernel-payload.tar.gz"
+fi
 
 # BIB spreads block groups across the provisioned device. Relocate those groups
 # before shrinking, otherwise btrfs reports ENOSPC even when data usage is low.

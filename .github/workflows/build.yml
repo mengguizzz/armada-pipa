@@ -17,6 +17,7 @@ env:
   BASE_IMAGE: ghcr.io/armada-os/armada:testing
   BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b
   PIPA_KERNEL_VERSION: 7.1.7-pipa
+  ROOTFS_ARTIFACT_RAW_LIMIT_BYTES: 21474836480
 
 jobs:
   build:
@@ -64,6 +65,19 @@ jobs:
           sudo podman image inspect localhost/armada-pipa:ci \
             --format '{{.Digest}} {{.Created}}' \
             | tee container-info.txt
+
+      - name: Extract Pipa kernel payload
+        run: |
+          set -euxo pipefail
+          mkdir -p build
+          sudo podman create --name pipa-kernel-payload \
+            localhost/armada-pipa:ci /bin/true
+          sudo podman cp \
+            pipa-kernel-payload:/usr/lib/armada-pipa/pipa-kernel-payload.tar.gz \
+            build/pipa-kernel-payload.tar.gz
+          sudo podman rm pipa-kernel-payload
+          sudo chown "$(id -u):$(id -g)" build/pipa-kernel-payload.tar.gz
+          sha256sum build/pipa-kernel-payload.tar.gz
 
       - name: Build bootc disk
         run: |
@@ -116,18 +130,27 @@ jobs:
           mkdir -p output/pipa
           ./scripts/export-pipa-images.sh \
             output/raw/image/disk.raw output/pipa build/grubaa64.efi \
-            build/pipa-dtb/sm8250-xiaomi-pipa.dtb
+            build/pipa-dtb/sm8250-xiaomi-pipa.dtb \
+            build/pipa-kernel-payload.tar.gz
           sudo chown -R "$(id -u):$(id -g)" output/pipa
           sudo rm -f output/raw/image/disk.raw
           cp flash-pipa.sh output/pipa/
 
-      - name: Prepare uncompressed artifacts
+      - name: Prepare artifacts
         run: |
           set -euxo pipefail
           cd output/pipa
-          split -d -a 2 -b 1900M pipa_rootfs.raw pipa_rootfs.raw.part-
-          rm -f pipa_rootfs.raw
-          sha256sum pipa_esp.raw pipa_boot.raw pipa_rootfs.raw.part-* \
+          rootfs_bytes=$(stat -c %s pipa_rootfs.raw)
+          rootfs_artifact_mode=single
+          if (( rootfs_bytes > ROOTFS_ARTIFACT_RAW_LIMIT_BYTES )); then
+            rootfs_artifact_mode=chunked
+            split -d -a 2 -b 1900M pipa_rootfs.raw pipa_rootfs.raw.part-
+            rm -f pipa_rootfs.raw
+          fi
+          shopt -s nullglob
+          rootfs_artifact_files=(pipa_rootfs.raw pipa_rootfs.raw.part-*)
+          shopt -u nullglob
+          sha256sum pipa_esp.raw pipa_boot.raw "${rootfs_artifact_files[@]}" \
             > SHA256SUMS
           rootfs_size=$(sed -n 's/^rootfs_size=//p' PARTITION-UUIDS.txt)
           {
@@ -138,6 +161,7 @@ jobs:
           echo "kernel=${PIPA_KERNEL_VERSION}"
             echo "dtb=pipa-7.1.7"
             echo "rootfs_image_size=${rootfs_size}"
+            echo "rootfs_artifact_mode=${rootfs_artifact_mode}"
           } > BUILDINFO.txt
 
       - name: Upload boot and metadata artifacts
@@ -157,39 +181,11 @@ jobs:
           compression-level: 6
           retention-days: 7
 
-      - name: Upload rootfs parts A
+      - name: Upload rootfs
         uses: actions/upload-artifact@v4
         with:
-          name: armada-pipa-${{ github.run_number }}-rootfs-a
-          path: |
-            output/pipa/pipa_rootfs.raw.part-00
-            output/pipa/pipa_rootfs.raw.part-01
-            output/pipa/pipa_rootfs.raw.part-02
-            output/pipa/pipa_rootfs.raw.part-03
-          if-no-files-found: error
-          compression-level: 9
-          retention-days: 7
-
-      - name: Upload rootfs parts B
-        uses: actions/upload-artifact@v4
-        with:
-          name: armada-pipa-${{ github.run_number }}-rootfs-b
-          path: |
-            output/pipa/pipa_rootfs.raw.part-04
-            output/pipa/pipa_rootfs.raw.part-05
-            output/pipa/pipa_rootfs.raw.part-06
-            output/pipa/pipa_rootfs.raw.part-07
-          if-no-files-found: error
-          compression-level: 9
-          retention-days: 7
-
-      - name: Upload rootfs parts C
-        uses: actions/upload-artifact@v4
-        with:
-          name: armada-pipa-${{ github.run_number }}-rootfs-c
-          path: |
-            output/pipa/pipa_rootfs.raw.part-08
-            output/pipa/pipa_rootfs.raw.part-09
+          name: armada-pipa-${{ github.run_number }}-rootfs
+          path: output/pipa/pipa_rootfs.raw*
           if-no-files-found: error
           compression-level: 9
           retention-days: 7

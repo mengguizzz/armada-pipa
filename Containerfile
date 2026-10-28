@@ -24,8 +24,37 @@ RUN set -eux; \
       '12e119491e8678223ac2d752b6877ee2ec623c21294aeec64fcc77d63dfa8350' 'bootmac_0.6.0-1pipa1_all.deb' \
       '33e7f7e8aefe3d357e06e00628271d1ceb8ec1120074988263402afb8a9a62aa' 'swclock-offset_0.3.0-1pipa1_all.deb' \
       | sha256sum -c -; \
-    mkdir -p /rootfs; \
-    for deb in ./*.deb; do dpkg-deb -x "${deb}" /rootfs; done
+    mkdir -p /user-rootfs /kernel-rootfs; \
+    dpkg-deb -x pipa-sound-conf_1.4-12pipa1_all.deb /user-rootfs; \
+    dpkg-deb -x bootmac_0.6.0-1pipa1_all.deb /user-rootfs; \
+    dpkg-deb -x swclock-offset_0.3.0-1pipa1_all.deb /user-rootfs; \
+    dpkg-deb -x linux-image-pipa_7.1.7-4pipa1_arm64.deb /kernel-rootfs; \
+    dpkg-deb -x linux-modules-pipa_7.1.7-4pipa1_arm64.deb /kernel-rootfs
+
+FROM ${BASE_IMAGE} AS pipa-kernel-builder
+
+ARG PIPA_KERNEL_VERSION
+
+COPY system_files/ /
+COPY --from=pipa-payload /kernel-rootfs/ /
+
+RUN set -eux; \
+    dnf install -y dracut pipa-dracut xiaomi-pipa-firmware; \
+    pipa_modules="/usr/lib/modules/${PIPA_KERNEL_VERSION}"; \
+    test -d "${pipa_modules}/kernel"; \
+    dracut \
+        --force \
+        --no-hostonly \
+        --kver "${PIPA_KERNEL_VERSION}" \
+        --add ostree \
+        /pipa-kernel-initramfs.img; \
+    mkdir -p /pipa-kernel-payload/usr/lib/modules; \
+    cp -a "${pipa_modules}" /pipa-kernel-payload/usr/lib/modules/; \
+    cp /boot/Image /pipa-kernel-payload/Image; \
+    cp "${pipa_modules}/devicetree/sm8250-xiaomi-pipa.dtb" \
+        /pipa-kernel-payload/sm8250-xiaomi-pipa.dtb; \
+    mv /pipa-kernel-initramfs.img /pipa-kernel-payload/initramfs.img; \
+    tar -C /pipa-kernel-payload -czf /pipa-kernel-payload.tar.gz .
 
 FROM ${BASE_IMAGE}
 ARG PIPA_KERNEL_VERSION
@@ -33,7 +62,7 @@ ENV PIPA_KERNEL_VERSION=${PIPA_KERNEL_VERSION}
 
 COPY system_files/etc/yum.repos.d/ /etc/yum.repos.d/
 COPY install-pipa.sh /usr/lib/armada-pipa/install-pipa.sh
-COPY --from=pipa-payload /rootfs/ /
+COPY --from=pipa-payload /user-rootfs/ /
 
 RUN set -eux; \
     dnf install -y \
@@ -61,6 +90,8 @@ RUN set -eux; \
 
 COPY system_files/ /
 COPY scripts/slim-image.sh /usr/lib/armada-pipa/slim-image.sh
+COPY --from=pipa-kernel-builder /pipa-kernel-payload.tar.gz \
+    /usr/lib/armada-pipa/pipa-kernel-payload.tar.gz
 
 RUN chmod 0755 /usr/lib/armada-pipa/install-pipa.sh \
     && chmod 0755 /usr/lib/armada-pipa/slim-image.sh \
